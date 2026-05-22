@@ -321,6 +321,21 @@ func IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 	return time.Until(mc.Time) < threshold
 }
 
+// IsExpiringSoon is the TokenService-bound variant that uses the service's
+// injectable clock (s.currentTime) instead of wall-clock time.Now. Tests
+// that pin svc.now for fixture-time determinism should call this method so
+// expiry checks consult the same time source as token parsing.
+//
+// Production behavior matches the top-level IsExpiringSoon because s.now is
+// nil there → currentTime() falls through to time.Now.
+func (s *TokenService) IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
+	mc, err := claims.GetExpirationTime()
+	if err != nil || mc == nil {
+		return false
+	}
+	return mc.Time.Sub(s.currentTime()) < threshold
+}
+
 // SelfTest performs an end-to-end sign-then-parse round-trip using a sentinel
 // principal to verify that the token service is correctly configured (secret
 // is loaded, algorithm is HS256, system clock is sane). It mirrors the

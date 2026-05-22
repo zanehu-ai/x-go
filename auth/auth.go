@@ -326,7 +326,7 @@ func IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 	if err != nil || mc == nil {
 		return false
 	}
-	if mc.Time.IsZero() {
+	if mc.IsZero() {
 		return true
 	}
 	return time.Until(mc.Time) < threshold
@@ -347,10 +347,10 @@ func (s *TokenService) IsExpiringSoon(claims jwt.Claims, threshold time.Duration
 	if err != nil || mc == nil {
 		return false
 	}
-	if mc.Time.IsZero() {
+	if mc.IsZero() {
 		return true
 	}
-	return mc.Time.Sub(s.currentTime()) < threshold
+	return mc.Sub(s.currentTime()) < threshold
 }
 
 // SelfTest performs an end-to-end sign-then-parse round-trip using a sentinel

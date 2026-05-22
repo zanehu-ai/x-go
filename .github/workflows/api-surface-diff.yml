@@ -67,6 +67,10 @@ jobs:
             APIDIFF=$(go env GOPATH)/bin/apidiff
             BASE_WT="$RUNNER_TEMP/synapse-go-baseline"
             rm -rf "$BASE_WT"
+            # Unconditional cleanup so self-hosted runners do not accumulate
+            # stale worktrees + .git/worktrees/ entries on apidiff failures
+            # (GH-hosted runners wipe RUNNER_TEMP between jobs anyway).
+            trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
             git worktree add --detach "$BASE_WT" "$BASELINE" 2>.reports/worktree.err
             WT_RC=$?
             if [ "$WT_RC" -ne 0 ]; then
@@ -94,7 +98,6 @@ jobs:
                 } > .reports/gorelease.txt
                 RC=1
               fi
-              git worktree remove --force "$BASE_WT" 2>/dev/null || true
             fi
           fi
           cat .reports/gorelease.txt

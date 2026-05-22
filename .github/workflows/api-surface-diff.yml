@@ -85,9 +85,24 @@ jobs:
             else
               # Capture baseline API surface
               if "$APIDIFF" -w .reports/api-base.json "$BASE_WT/..." > .reports/apidiff-base.log 2>&1; then
-                # Compare current tree against captured baseline
-                "$APIDIFF" .reports/api-base.json ./... > .reports/gorelease.txt 2>&1
-                RC=$?
+                # Sanity-check: apidiff can return rc=0 but write a corrupt or
+                # empty json (e.g., partial scan due to compile error). Without
+                # this, the next call compares against an empty baseline and
+                # reports EVERY current export as "added".
+                if ! [ -s .reports/api-base.json ] || ! jq -e '.' .reports/api-base.json >/dev/null 2>&1; then
+                  {
+                    echo "## API Surface Diff — baseline JSON empty or malformed"
+                    echo ""
+                    echo "apidiff returned rc=0 but produced unusable baseline:"
+                    echo ""
+                    cat .reports/apidiff-base.log
+                  } > .reports/gorelease.txt
+                  RC=1
+                else
+                  # Compare current tree against captured baseline
+                  "$APIDIFF" .reports/api-base.json ./... > .reports/gorelease.txt 2>&1
+                  RC=$?
+                fi
               else
                 {
                   echo "## API Surface Diff — baseline capture failed"

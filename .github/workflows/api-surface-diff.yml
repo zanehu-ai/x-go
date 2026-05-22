@@ -85,16 +85,25 @@ jobs:
             else
               # Capture baseline API surface
               if "$APIDIFF" -w .reports/api-base.json "$BASE_WT/..." > .reports/apidiff-base.log 2>&1; then
-                # Sanity-check: apidiff can return rc=0 but write a corrupt or
-                # empty json (e.g., partial scan due to compile error). Without
-                # this, the next call compares against an empty baseline and
-                # reports EVERY current export as "added".
-                if ! [ -s .reports/api-base.json ] || ! jq -e '.' .reports/api-base.json >/dev/null 2>&1; then
+                # apidiff baseline is gob-encoded binary (NOT JSON — the
+                # previous R5 jq -e check was wrong and rejected every valid
+                # baseline). The only meaningful sanity check at this layer
+                # is non-empty file; partial / corrupt gob will surface as a
+                # parse error in the next apidiff invocation, which is
+                # captured into gorelease.txt for the reviewer.
+                #
+                # Set a floor: a healthy synapse-go baseline is tens of KB.
+                # < 100 bytes almost certainly = scan aborted very early.
+                BASE_SIZE=$(wc -c < .reports/api-base.json | tr -d ' ')
+                if [ -z "$BASE_SIZE" ] || [ "$BASE_SIZE" -lt 100 ]; then
                   {
-                    echo "## API Surface Diff — baseline JSON empty or malformed"
+                    echo "## API Surface Diff — baseline suspiciously small ($BASE_SIZE bytes)"
                     echo ""
-                    echo "apidiff returned rc=0 but produced unusable baseline:"
+                    echo "apidiff returned rc=0 but produced a tiny baseline file."
+                    echo "Floor is 100 bytes; healthy synapse-go baseline is tens of KB."
+                    echo "Likely the baseline worktree failed to scan most packages."
                     echo ""
+                    echo "apidiff -w log:"
                     cat .reports/apidiff-base.log
                   } > .reports/gorelease.txt
                   RC=1

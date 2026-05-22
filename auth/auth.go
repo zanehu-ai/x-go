@@ -223,7 +223,7 @@ func (s *TokenService) IssueTenantToken(
 // ParsePlatformToken verifies and decodes a platform token.
 func (s *TokenService) ParsePlatformToken(tokenStr string) (*PlatformClaims, error) {
 	claims := &PlatformClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}
@@ -239,7 +239,7 @@ func (s *TokenService) ParsePlatformToken(tokenStr string) (*PlatformClaims, err
 // ParseTenantToken verifies and decodes a tenant token.
 func (s *TokenService) ParseTenantToken(tokenStr string) (*TenantClaims, error) {
 	claims := &TenantClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}
@@ -292,7 +292,7 @@ func (s *TokenService) IssueStepUpToken(principalID uint64, scope string, ttl ti
 // validation error here.
 func (s *TokenService) ParseStepUpToken(tokenStr string) (*StepUpClaims, error) {
 	claims := &StepUpClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}

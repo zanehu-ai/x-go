@@ -235,6 +235,11 @@ func TestInteropReadVectors(t *testing.T) {
 		v := v
 		t.Run(v.ID, func(t *testing.T) {
 			svc, _ := NewTokenService(v.SharedSecret, interopIssuer, 3600, 86400)
+			// Pin parser clock to the same fixture time used to issue the
+			// vectors. Without this, short-lived tokens (e.g. step-up with
+			// MaxStepUpTTL=5min) expire by wall-clock and the read test
+			// fails forever after the first 5 minutes post-generation.
+			svc.now = func() time.Time { return interopFixtureNow }
 
 			// Try parsing as each token type; accept if any succeeds (for
 			// positive cases). For negative cases, all three must fail.

@@ -223,7 +223,7 @@ func (s *TokenService) IssueTenantToken(
 // ParsePlatformToken verifies and decodes a platform token.
 func (s *TokenService) ParsePlatformToken(tokenStr string) (*PlatformClaims, error) {
 	claims := &PlatformClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}
@@ -239,7 +239,7 @@ func (s *TokenService) ParsePlatformToken(tokenStr string) (*PlatformClaims, err
 // ParseTenantToken verifies and decodes a tenant token.
 func (s *TokenService) ParseTenantToken(tokenStr string) (*TenantClaims, error) {
 	claims := &TenantClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}
@@ -292,7 +292,7 @@ func (s *TokenService) IssueStepUpToken(principalID uint64, scope string, ttl ti
 // validation error here.
 func (s *TokenService) ParseStepUpToken(tokenStr string) (*StepUpClaims, error) {
 	claims := &StepUpClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, s.keyFunc, jwt.WithTimeFunc(s.currentTime))
 	if err != nil || token == nil || !token.Valid {
 		return nil, ErrInvalidToken
 	}
@@ -312,13 +312,45 @@ func (s *TokenService) ParseStepUpToken(tokenStr string) (*StepUpClaims, error) 
 //
 // The method accepts any jwt.Claims whose ExpiresAt is populated (i.e.
 // PlatformClaims, TenantClaims, or StepUpClaims all embed jwt.RegisteredClaims
-// which implements this interface). Returns false if expiry is not set.
+// which implements this interface).
+//
+// Edge cases:
+//   - Returns false if claims.GetExpirationTime returns error or nil mc.
+//   - If mc.Time is the zero value, the call returns true (token is treated
+//     as already-expiring); zero exp is malformed and callers should refresh.
+//   - Uses wall-clock time.Until. For test code that pins TokenService.now
+//     to a fixture time, use (s *TokenService).IsExpiringSoon instead to
+//     keep clock semantics consistent between Parse* and IsExpiringSoon.
 func IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 	mc, err := claims.GetExpirationTime()
 	if err != nil || mc == nil {
 		return false
 	}
+	if mc.IsZero() {
+		return true
+	}
 	return time.Until(mc.Time) < threshold
+}
+
+// IsExpiringSoon is the TokenService-bound variant that uses the service's
+// injectable clock (s.currentTime) instead of wall-clock time.Now. Tests
+// that pin svc.now for fixture-time determinism should call this method so
+// expiry checks consult the same time source as token parsing.
+//
+// Production behavior matches the top-level IsExpiringSoon because s.now is
+// nil there → currentTime() falls through to time.Now.
+//
+// Edge cases match the top-level function: zero mc.Time → treated as
+// already-expiring (returns true).
+func (s *TokenService) IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
+	mc, err := claims.GetExpirationTime()
+	if err != nil || mc == nil {
+		return false
+	}
+	if mc.IsZero() {
+		return true
+	}
+	return mc.Sub(s.currentTime()) < threshold
 }
 
 // SelfTest performs an end-to-end sign-then-parse round-trip using a sentinel

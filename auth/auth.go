@@ -312,11 +312,22 @@ func (s *TokenService) ParseStepUpToken(tokenStr string) (*StepUpClaims, error) 
 //
 // The method accepts any jwt.Claims whose ExpiresAt is populated (i.e.
 // PlatformClaims, TenantClaims, or StepUpClaims all embed jwt.RegisteredClaims
-// which implements this interface). Returns false if expiry is not set.
+// which implements this interface).
+//
+// Edge cases:
+//   - Returns false if claims.GetExpirationTime returns error or nil mc.
+//   - If mc.Time is the zero value, the call returns true (token is treated
+//     as already-expiring); zero exp is malformed and callers should refresh.
+//   - Uses wall-clock time.Until. For test code that pins TokenService.now
+//     to a fixture time, use (s *TokenService).IsExpiringSoon instead to
+//     keep clock semantics consistent between Parse* and IsExpiringSoon.
 func IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 	mc, err := claims.GetExpirationTime()
 	if err != nil || mc == nil {
 		return false
+	}
+	if mc.Time.IsZero() {
+		return true
 	}
 	return time.Until(mc.Time) < threshold
 }
@@ -328,10 +339,16 @@ func IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 //
 // Production behavior matches the top-level IsExpiringSoon because s.now is
 // nil there → currentTime() falls through to time.Now.
+//
+// Edge cases match the top-level function: zero mc.Time → treated as
+// already-expiring (returns true).
 func (s *TokenService) IsExpiringSoon(claims jwt.Claims, threshold time.Duration) bool {
 	mc, err := claims.GetExpirationTime()
 	if err != nil || mc == nil {
 		return false
+	}
+	if mc.Time.IsZero() {
+		return true
 	}
 	return mc.Time.Sub(s.currentTime()) < threshold
 }

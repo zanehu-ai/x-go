@@ -46,7 +46,7 @@ jobs:
           fi
           echo "Baseline: ${LATEST_TAG:-origin/main}"
 
-      - name: Run gorelease
+      - name: Run gorelease / apidiff
         id: gorelease
         env:
           BASELINE: ${{ steps.baseline.outputs.baseline }}
@@ -55,14 +55,48 @@ jobs:
           set +e
           mkdir -p .reports
           if [ "$MODE" = "tag" ]; then
+            # gorelease accepts -base=<version> and compares working tree
+            # against the published tag's API surface.
             gorelease -base="$BASELINE" > .reports/gorelease.txt 2>&1
+            RC=$?
           else
-            # No tag yet; show diff against main HEAD using apidiff instead
+            # Branch-mode: no tag exists yet. Properly check out the
+            # baseline ref to a worktree, run apidiff against package paths
+            # (apidiff needs ./... or module-path args, NOT git refs).
             go install golang.org/x/exp/cmd/apidiff@latest
-            apidiff -m -w .reports/api-base.json "$BASELINE" 2>.reports/apidiff-base.err || true
-            apidiff -m .reports/api-base.json . > .reports/gorelease.txt 2>&1
+            APIDIFF=$(go env GOPATH)/bin/apidiff
+            BASE_WT="$RUNNER_TEMP/synapse-go-baseline"
+            rm -rf "$BASE_WT"
+            git worktree add --detach "$BASE_WT" "$BASELINE" 2>.reports/worktree.err
+            WT_RC=$?
+            if [ "$WT_RC" -ne 0 ]; then
+              {
+                echo "## API Surface Diff — could not establish baseline"
+                echo ""
+                echo "git worktree add for $BASELINE failed (rc=$WT_RC):"
+                echo ""
+                cat .reports/worktree.err
+              } > .reports/gorelease.txt
+              RC=$WT_RC
+            else
+              # Capture baseline API surface
+              if "$APIDIFF" -w .reports/api-base.json "$BASE_WT/..." > .reports/apidiff-base.log 2>&1; then
+                # Compare current tree against captured baseline
+                "$APIDIFF" .reports/api-base.json ./... > .reports/gorelease.txt 2>&1
+                RC=$?
+              else
+                {
+                  echo "## API Surface Diff — baseline capture failed"
+                  echo ""
+                  echo "apidiff -w against $BASE_WT did not produce a usable baseline:"
+                  echo ""
+                  cat .reports/apidiff-base.log
+                } > .reports/gorelease.txt
+                RC=1
+              fi
+              git worktree remove --force "$BASE_WT" 2>/dev/null || true
+            fi
           fi
-          RC=$?
           cat .reports/gorelease.txt
           echo "rc=$RC" >> "$GITHUB_OUTPUT"
           # warn-only: do not fail the job; PR comment surfaces findings

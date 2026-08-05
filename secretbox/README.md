@@ -14,9 +14,16 @@ if err != nil {
 }
 
 sealed, err := box.Encrypt(contact, []byte("tenant:42:email"))
+if err != nil {
+    return err
+}
 // Persist sealed.Ciphertext and sealed.KeyVersion in separate columns.
 
 plain, err := box.Decrypt(sealed, []byte("tenant:42:email"))
+if err != nil {
+    return err
+}
+_ = plain // Pass the authenticated plaintext to the owning workflow.
 ```
 
 Key material must be exactly 32 bytes and come from a managed secret store.

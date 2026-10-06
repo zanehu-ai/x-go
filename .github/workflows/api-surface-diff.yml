@@ -19,6 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Prepare report directory
+        id: reports
+        run: |
+          set -euo pipefail
+          REPORT_DIR="$RUNNER_TEMP/api-surface-diff-report"
+          mkdir -p "$REPORT_DIR"
+          echo "REPORT_DIR=$REPORT_DIR" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -52,114 +60,133 @@ jobs:
           BASELINE: ${{ steps.baseline.outputs.baseline }}
           MODE: ${{ steps.baseline.outputs.mode }}
         run: |
-          set +e
-          mkdir -p .reports
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR"
+          REPORT="$REPORT_DIR/gorelease.txt"
+          RC=1
+          STATUS=tool-error
           if [ "$MODE" = "tag" ]; then
-            # gorelease accepts -base=<version> and compares working tree
-            # against the published tag's API surface.
-            gorelease -base="$BASELINE" > .reports/gorelease.txt 2>&1
-            RC=$?
-          else
-            # Branch-mode: no tag exists yet. Properly check out the
-            # baseline ref to a worktree, run apidiff against package paths
-            # (apidiff needs ./... or module-path args, NOT git refs).
-            go install golang.org/x/exp/cmd/apidiff@latest
-            APIDIFF=$(go env GOPATH)/bin/apidiff
-            BASE_WT="$RUNNER_TEMP/synapse-go-baseline"
-            rm -rf "$BASE_WT"
-            # Unconditional cleanup so self-hosted runners do not accumulate
-            # stale worktrees + .git/worktrees/ entries on apidiff failures
-            # (GH-hosted runners wipe RUNNER_TEMP between jobs anyway).
-            trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
-            git worktree add --detach "$BASE_WT" "$BASELINE" 2>.reports/worktree.err
-            WT_RC=$?
-            if [ "$WT_RC" -ne 0 ]; then
-              {
-                echo "## API Surface Diff — could not establish baseline"
-                echo ""
-                echo "git worktree add for $BASELINE failed (rc=$WT_RC):"
-                echo ""
-                cat .reports/worktree.err
-              } > .reports/gorelease.txt
-              RC=$WT_RC
+            # Keep stdout separate: gorelease uses exit 1 for both findings
+            # and tool failures. Completed release diagnostics are findings,
+            # while package-loading errors mean the API report is incomplete.
+            if gorelease -base="$BASELINE" > "$REPORT" 2> "$REPORT_DIR/gorelease.err"; then
+              RC=0
             else
-              # Capture baseline API surface
-              if "$APIDIFF" -w .reports/api-base.json "$BASE_WT/..." > .reports/apidiff-base.log 2>&1; then
-                # apidiff baseline is gob-encoded binary (NOT JSON — the
-                # previous R5 jq -e check was wrong and rejected every valid
-                # baseline). The only meaningful sanity check at this layer
-                # is non-empty file; partial / corrupt gob will surface as a
-                # parse error in the next apidiff invocation, which is
-                # captured into gorelease.txt for the reviewer.
-                #
-                # Set a floor: a healthy synapse-go baseline is tens of KB.
-                # < 100 bytes almost certainly = scan aborted very early.
-                BASE_SIZE=$(wc -c < .reports/api-base.json | tr -d ' ')
-                if [ -z "$BASE_SIZE" ] || [ "$BASE_SIZE" -lt 100 ]; then
-                  {
-                    echo "## API Surface Diff — baseline suspiciously small ($BASE_SIZE bytes)"
-                    echo ""
-                    echo "apidiff returned rc=0 but produced a tiny baseline file."
-                    echo "Floor is 100 bytes; healthy synapse-go baseline is tens of KB."
-                    echo "Likely the baseline worktree failed to scan most packages."
-                    echo ""
-                    echo "apidiff -w log:"
-                    cat .reports/apidiff-base.log
-                  } > .reports/gorelease.txt
-                  RC=1
+              RC=$?
+            fi
+            if [ "$RC" -le 1 ] && [ -s "$REPORT" ] &&
+                grep -qx '# summary' "$REPORT" &&
+                ! grep -Eq '^## errors in (base|release) version:' "$REPORT" &&
+                [ ! -s "$REPORT_DIR/gorelease.err" ]; then
+              STATUS=complete
+            fi
+            cat "$REPORT_DIR/gorelease.err" >> "$REPORT"
+          else
+            # apidiff returns 0 for API differences; nonzero means a tool error.
+            if go install golang.org/x/exp/cmd/apidiff@latest > "$REPORT_DIR/apidiff-install.log" 2>&1; then
+              APIDIFF="$(go env GOPATH)/bin/apidiff"
+              BASE_WT=$(mktemp -d "$RUNNER_TEMP/synapse-go-baseline.XXXXXX")
+              trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
+              if git worktree add --detach "$BASE_WT" "$BASELINE" 2> "$REPORT_DIR/worktree.err"; then
+                # Scan the whole baseline module from its own checkout.
+                if (cd "$BASE_WT" &&
+                    BASE_MODULE=$(go list -m) &&
+                    "$APIDIFF" -m -w "$REPORT_DIR/api-base.gob" "$BASE_MODULE") > "$REPORT_DIR/apidiff-base.log" 2>&1; then
+                  BASE_SIZE=0
+                  if [ -s "$REPORT_DIR/api-base.gob" ]; then
+                    BASE_SIZE=$(wc -c < "$REPORT_DIR/api-base.gob" | tr -d ' ')
+                  fi
+                  if [ "$BASE_SIZE" -ge 100 ]; then
+                    if CURRENT_MODULE=$(go list -m) &&
+                        "$APIDIFF" -m "$REPORT_DIR/api-base.gob" "$CURRENT_MODULE" > "$REPORT" 2>&1; then
+                      RC=0
+                      STATUS=complete
+                      if [ ! -s "$REPORT" ]; then
+                        echo "No API differences from $BASELINE (apidiff module comparison completed)." > "$REPORT"
+                      fi
+                    else
+                      RC=$?
+                    fi
+                  else
+                    echo "Baseline export is suspiciously small ($BASE_SIZE bytes; minimum 100)." > "$REPORT"
+                  fi
                 else
-                  # Compare current tree against captured baseline
-                  "$APIDIFF" .reports/api-base.json ./... > .reports/gorelease.txt 2>&1
                   RC=$?
+                  {
+                    echo "API baseline capture failed (exit=$RC)."
+                    cat "$REPORT_DIR/apidiff-base.log"
+                  } > "$REPORT"
                 fi
               else
+                RC=$?
                 {
-                  echo "## API Surface Diff — baseline capture failed"
-                  echo ""
-                  echo "apidiff -w against $BASE_WT did not produce a usable baseline:"
-                  echo ""
-                  cat .reports/apidiff-base.log
-                } > .reports/gorelease.txt
-                RC=1
+                  echo "Could not establish baseline $BASELINE (exit=$RC)."
+                  cat "$REPORT_DIR/worktree.err"
+                } > "$REPORT"
               fi
+            else
+              RC=$?
+              {
+                echo "Could not install apidiff (exit=$RC)."
+                cat "$REPORT_DIR/apidiff-install.log"
+              } > "$REPORT"
             fi
           fi
-          cat .reports/gorelease.txt
+          if [ "$STATUS" = "tool-error" ]; then
+            echo "API comparison did not complete successfully (tool/setup failure; exit=$RC)." >> "$REPORT"
+            echo "::error::API report generation failed; see api-surface-diff-report."
+          elif [ "$RC" -ne 0 ]; then
+            echo "::warning::Completed API/semver report has findings (exit=$RC); findings remain warn-only."
+          fi
+          cat "$REPORT"
           echo "rc=$RC" >> "$GITHUB_OUTPUT"
-          # warn-only: do not fail the job; PR comment surfaces findings
-          exit 0
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          # API findings remain warn-only; tool/setup failures fail visibly.
+          [ "$STATUS" = "complete" ]
 
       - name: Upload report
+        id: upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-surface-diff-report
-          path: .reports/
+          path: ${{ runner.temp }}/api-surface-diff-report/
+          if-no-files-found: error
 
       - name: Comment PR
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.gorelease.outputs.status != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASELINE: ${{ steps.baseline.outputs.baseline }}
           MODE: ${{ steps.baseline.outputs.mode }}
           RC: ${{ steps.gorelease.outputs.rc }}
+          STATUS: ${{ steps.gorelease.outputs.status }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
         run: |
           {
             echo "## 🔍 API Surface Diff (gorelease)"
             echo ""
             echo "Baseline: \`$BASELINE\` (mode=$MODE)"
             echo ""
-            if [ ! -s .reports/gorelease.txt ]; then
+            if [ ! -s "$REPORT_DIR/gorelease.txt" ]; then
               echo "⚠ gorelease produced no output (exit=$RC). Tool may have crashed; check workflow logs."
             else
               echo '```'
-              head -120 .reports/gorelease.txt
+              head -120 "$REPORT_DIR/gorelease.txt"
               echo '```'
               echo ""
-              echo "Full report: see Actions artifact \`api-surface-diff-report\`."
+              if [ "$UPLOAD_OUTCOME" = "success" ]; then
+                echo "Full report: see Actions artifact \`api-surface-diff-report\`."
+              else
+                echo "Report upload failed; see workflow logs."
+              fi
               echo ""
-              echo "warn-only — does not block merge. Breaking changes (major-bumping incompatibilities) should be coordinated with downstream consumers (opcorbit, etc.) before merge."
+              if [ "$STATUS" = "complete" ]; then
+                echo "API compatibility findings are warn-only — do not block merge. Breaking changes should be coordinated with downstream consumers (opcorbit, etc.) before merge."
+              else
+                echo "❌ Tool/setup failure (exit=$RC): API comparison did not complete; check workflow logs. This is not an API compatibility finding."
+              fi
             fi
-          } > .reports/api-diff-comment.md
-          gh pr comment "$PR_NUMBER" --body-file .reports/api-diff-comment.md || true
+          } > "$REPORT_DIR/api-diff-comment.md"
+          gh pr comment "$PR_NUMBER" --body-file "$REPORT_DIR/api-diff-comment.md" || echo "::warning::Could not post API report comment."

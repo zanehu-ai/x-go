@@ -18,148 +18,271 @@ jobs:
     name: gorelease (semver compatibility report)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      API_TOOL_VERSION: v0.0.0-20261005173118-76772065c9b0
+      HISTORICAL_BASELINE: v0.4.0
     steps:
+      - name: Prepare report directory
+        id: reports
+        run: |
+          set -euo pipefail
+          REPORT_DIR="$RUNNER_TEMP/api-surface-diff-report"
+          mkdir -p "$REPORT_DIR"
+          echo "REPORT_DIR=$REPORT_DIR" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
+        id: checkout
         with:
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
+        id: go
         with:
           go-version: '1.26.3'
           cache: true
 
-      - name: Install gorelease
-        run: go install golang.org/x/exp/cmd/gorelease@latest
-
-      - name: Determine baseline
+      - name: Capture main snapshot
         id: baseline
         run: |
-          # Pick the latest tag reachable from main as the baseline. If no
-          # tag exists yet, fall back to comparing against origin/main directly.
-          LATEST_TAG=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "")
-          if [ -n "$LATEST_TAG" ]; then
-            echo "baseline=$LATEST_TAG" >> "$GITHUB_OUTPUT"
-            echo "mode=tag" >> "$GITHUB_OUTPUT"
-          else
-            echo "baseline=origin/main" >> "$GITHUB_OUTPUT"
-            echo "mode=branch" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          MAIN_BASELINE=$(git rev-parse --verify 'origin/main^{commit}')
+          if ! [[ "$MAIN_BASELINE" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Main snapshot is not a valid commit SHA."
+            exit 1
           fi
-          echo "Baseline: ${LATEST_TAG:-origin/main}"
+          echo "baseline=$MAIN_BASELINE" >> "$GITHUB_OUTPUT"
+          echo "Main comparison snapshot: $MAIN_BASELINE"
+          echo "Historical release baseline: $HISTORICAL_BASELINE (unverified for release compatibility)"
 
-      - name: Run gorelease / apidiff
+      - name: Generate main and historical API reports
         id: gorelease
+        if: always() && steps.reports.outcome == 'success' && steps.checkout.outcome == 'success' && steps.go.outcome == 'success'
         env:
-          BASELINE: ${{ steps.baseline.outputs.baseline }}
-          MODE: ${{ steps.baseline.outputs.mode }}
+          MAIN_BASELINE: ${{ steps.baseline.outputs.baseline }}
         run: |
-          set +e
-          mkdir -p .reports
-          if [ "$MODE" = "tag" ]; then
-            # gorelease accepts -base=<version> and compares working tree
-            # against the published tag's API surface.
-            gorelease -base="$BASELINE" > .reports/gorelease.txt 2>&1
-            RC=$?
-          else
-            # Branch-mode: no tag exists yet. Properly check out the
-            # baseline ref to a worktree, run apidiff against package paths
-            # (apidiff needs ./... or module-path args, NOT git refs).
-            go install golang.org/x/exp/cmd/apidiff@latest
-            APIDIFF=$(go env GOPATH)/bin/apidiff
-            BASE_WT="$RUNNER_TEMP/synapse-go-baseline"
-            rm -rf "$BASE_WT"
-            # Unconditional cleanup so self-hosted runners do not accumulate
-            # stale worktrees + .git/worktrees/ entries on apidiff failures
-            # (GH-hosted runners wipe RUNNER_TEMP between jobs anyway).
-            trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
-            git worktree add --detach "$BASE_WT" "$BASELINE" 2>.reports/worktree.err
-            WT_RC=$?
-            if [ "$WT_RC" -ne 0 ]; then
-              {
-                echo "## API Surface Diff — could not establish baseline"
-                echo ""
-                echo "git worktree add for $BASELINE failed (rc=$WT_RC):"
-                echo ""
-                cat .reports/worktree.err
-              } > .reports/gorelease.txt
-              RC=$WT_RC
+          set -euo pipefail
+          MAIN_STATUS="tool-error"
+          MAIN_RC=1
+          HISTORICAL_STATUS="tool-error"
+          HISTORICAL_RC=1
+          MAIN_RAW="$REPORT_DIR/main-api-diff.raw.txt"
+          HISTORICAL_RAW="$REPORT_DIR/historical-v0.4.0.raw.txt"
+          : > "$MAIN_RAW"
+          : > "$HISTORICAL_RAW"
+          : > "$REPORT_DIR/historical-v0.4.0.err"
+          install_tool() {
+            local tool=$1
+            local log="$REPORT_DIR/$tool-install.log"
+            if go install "golang.org/x/exp/cmd/$tool@$API_TOOL_VERSION" > "$log" 2>&1; then
+              if TOOL_GOPATH=$(go env GOPATH 2>> "$log") &&
+                  go version -m "$TOOL_GOPATH/bin/$tool" > "$REPORT_DIR/$tool-build.txt" 2>> "$log"; then
+                cat "$REPORT_DIR/$tool-build.txt"
+                return 0
+              else
+                return $?
+              fi
             else
-              # Capture baseline API surface
-              if "$APIDIFF" -w .reports/api-base.json "$BASE_WT/..." > .reports/apidiff-base.log 2>&1; then
-                # apidiff baseline is gob-encoded binary (NOT JSON — the
-                # previous R5 jq -e check was wrong and rejected every valid
-                # baseline). The only meaningful sanity check at this layer
-                # is non-empty file; partial / corrupt gob will surface as a
-                # parse error in the next apidiff invocation, which is
-                # captured into gorelease.txt for the reviewer.
-                #
-                # Set a floor: a healthy synapse-go baseline is tens of KB.
-                # < 100 bytes almost certainly = scan aborted very early.
-                BASE_SIZE=$(wc -c < .reports/api-base.json | tr -d ' ')
-                if [ -z "$BASE_SIZE" ] || [ "$BASE_SIZE" -lt 100 ]; then
-                  {
-                    echo "## API Surface Diff — baseline suspiciously small ($BASE_SIZE bytes)"
-                    echo ""
-                    echo "apidiff returned rc=0 but produced a tiny baseline file."
-                    echo "Floor is 100 bytes; healthy synapse-go baseline is tens of KB."
-                    echo "Likely the baseline worktree failed to scan most packages."
-                    echo ""
-                    echo "apidiff -w log:"
-                    cat .reports/apidiff-base.log
-                  } > .reports/gorelease.txt
-                  RC=1
+              return $?
+            fi
+          }
+          module_prefix() {
+            case "$1" in
+              gopkg.in/*) printf '%s\n' "$1" | sed -E 's/\.v[0-9]+(-unstable)?$//' ;;
+              *) printf '%s\n' "$1" | sed -E 's#/v[0-9]+$##' ;;
+            esac
+          }
+
+          # Compare against the captured SHA, never a later-moving branch ref.
+          if [[ "$MAIN_BASELINE" =~ ^[0-9a-f]{40}$ ]]; then
+            if install_tool apidiff; then
+              APIDIFF="$TOOL_GOPATH/bin/apidiff"
+              if BASE_WT=$(mktemp -d "$RUNNER_TEMP/synapse-go-main.XXXXXX"); then
+                trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
+                if git worktree add --detach "$BASE_WT" "$MAIN_BASELINE" 2> "$REPORT_DIR/main-worktree.err"; then
+                  if BASE_MODULE=$(cd "$BASE_WT" && GOWORK=off go list -m) &&
+                      CURRENT_MODULE=$(GOWORK=off go list -m); then
+                    if [ -n "$BASE_MODULE" ] && [ "$BASE_MODULE" = "$CURRENT_MODULE" ]; then
+                      if (cd "$BASE_WT" && GOWORK=off GOFLAGS=-mod=readonly "$APIDIFF" -m -w "$REPORT_DIR/main-api-base.gob" "$BASE_MODULE") > "$REPORT_DIR/main-baseline.log" 2>&1; then
+                        if [ -s "$REPORT_DIR/main-api-base.gob" ]; then
+                          if GOWORK=off GOFLAGS=-mod=readonly "$APIDIFF" -m "$REPORT_DIR/main-api-base.gob" "$CURRENT_MODULE" > "$MAIN_RAW" 2>&1; then
+                            MAIN_RC=0
+                            MAIN_STATUS=complete
+                            if [ ! -s "$MAIN_RAW" ]; then
+                              echo "No API differences from main snapshot $MAIN_BASELINE (module comparison completed)." > "$MAIN_RAW"
+                            fi
+                          else
+                            MAIN_RC=$?
+                          fi
+                        else
+                          echo "Main baseline capture produced no nonempty export." > "$MAIN_RAW"
+                        fi
+                      else
+                        MAIN_RC=$?
+                        cat "$REPORT_DIR/main-baseline.log" > "$MAIN_RAW"
+                      fi
+                    else
+                      echo "Cannot compare different modules: main=$BASE_MODULE, PR=$CURRENT_MODULE." > "$MAIN_RAW"
+                    fi
+                  else
+                    MAIN_RC=$?
+                    echo "Could not resolve main/PR module identity (exit=$MAIN_RC); see workflow logs." > "$MAIN_RAW"
+                  fi
                 else
-                  # Compare current tree against captured baseline
-                  "$APIDIFF" .reports/api-base.json ./... > .reports/gorelease.txt 2>&1
-                  RC=$?
+                  MAIN_RC=$?
+                  cat "$REPORT_DIR/main-worktree.err" > "$MAIN_RAW"
                 fi
               else
-                {
-                  echo "## API Surface Diff — baseline capture failed"
-                  echo ""
-                  echo "apidiff -w against $BASE_WT did not produce a usable baseline:"
-                  echo ""
-                  cat .reports/apidiff-base.log
-                } > .reports/gorelease.txt
-                RC=1
+                MAIN_RC=$?
+                echo "Could not create main baseline worktree directory (exit=$MAIN_RC)." > "$MAIN_RAW"
               fi
+            else
+              MAIN_RC=$?
+              cat "$REPORT_DIR/apidiff-install.log" > "$MAIN_RAW"
             fi
+          else
+            echo "Could not resolve a valid main snapshot; see Capture main snapshot." > "$MAIN_RAW"
           fi
-          cat .reports/gorelease.txt
-          echo "rc=$RC" >> "$GITHUB_OUTPUT"
-          # warn-only: do not fail the job; PR comment surfaces findings
-          exit 0
+
+          # Historical output is informational and never verifies release compatibility.
+          # Inspect the actual published module declaration outside the checkout.
+          if install_tool gorelease; then
+            GORELEASE="$TOOL_GOPATH/bin/gorelease"
+            if CURRENT_MODULE=$(GOWORK=off go list -m 2> "$REPORT_DIR/historical-module.err") &&
+                [ -n "$CURRENT_MODULE" ] &&
+                (cd "$REPORT_DIR" && GOWORK=off go mod download -json "$CURRENT_MODULE@$HISTORICAL_BASELINE") > "$REPORT_DIR/historical-module.json" 2>> "$REPORT_DIR/historical-module.err" &&
+                BASE_GO_MOD=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); sys.exit(d["Error"]) if d.get("Error") else print(d["GoMod"])' "$REPORT_DIR/historical-module.json" 2>> "$REPORT_DIR/historical-module.err") &&
+                HISTORICAL_MODULE=$(cd "$REPORT_DIR" && GOWORK=off go mod edit -json "$BASE_GO_MOD" 2>> "$REPORT_DIR/historical-module.err" | python3 -c 'import json, sys; print(json.load(sys.stdin)["Module"]["Path"])' 2>> "$REPORT_DIR/historical-module.err"); then
+              if [ -n "$HISTORICAL_MODULE" ] &&
+                  [ "$(module_prefix "$HISTORICAL_MODULE")" != "$(module_prefix "$CURRENT_MODULE")" ]; then
+                if GOWORK=off "$GORELEASE" -base="$HISTORICAL_BASELINE" > "$HISTORICAL_RAW" 2> "$REPORT_DIR/historical-v0.4.0.err"; then
+                  HISTORICAL_RC=0
+                else
+                  HISTORICAL_RC=$?
+                fi
+                if [ "$HISTORICAL_RC" -le 1 ] && [ -s "$HISTORICAL_RAW" ] &&
+                    [ ! -s "$REPORT_DIR/historical-v0.4.0.err" ] &&
+                    python3 - "$HISTORICAL_RAW" "$HISTORICAL_MODULE" "$CURRENT_MODULE" 2> "$REPORT_DIR/historical-format.err" <<'PY'
+          import pathlib, sys
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          if not text.endswith("\n\n"):
+              sys.exit("Historical report is truncated or has no final package terminator.")
+          packages = set()
+          for block in text[:-2].split("\n\n"):
+              lines = block.splitlines()
+              if not lines or not lines[0].startswith("# "):
+                  sys.exit("Historical report has an unexpected package header.")
+              package = lines[0][2:]
+              if any(not char.isprintable() or char.isspace() for char in package) or any(part in ("", ".", "..") for part in package.split("/")) or package in packages:
+                  sys.exit("Historical report has an invalid or repeated package path.")
+              if not any(package == module or package.startswith(module + "/") for module in sys.argv[2:]):
+                  sys.exit("Historical report package is outside the compared modules.")
+              packages.add(package)
+              sections, details = [], 0
+              for line in lines[1:]:
+                  if line in ("## incompatible changes", "## compatible changes"):
+                      if (sections and not details) or line in sections or (sections and line == "## incompatible changes"):
+                          sys.exit("Historical report has an empty, repeated, or unordered section.")
+                      sections.append(line)
+                      details = 0
+                  elif sections and (line in ("package added", "package removed") or (": " in line and not line.startswith("#") and all(part.strip() for part in line.split(": ", 1)))):
+                      details += 1
+                  else:
+                      sys.exit("Historical report has a package error or unexpected content.")
+              if not sections or not details:
+                  sys.exit("Historical report has no complete change section.")
+          PY
+                then
+                  HISTORICAL_STATUS=unverified
+                fi
+              else
+                echo "Historical baseline module is not the expected cross-module comparison; verification is incomplete." > "$REPORT_DIR/historical-v0.4.0.err"
+              fi
+            else
+              HISTORICAL_RC=$?
+              cat "$REPORT_DIR/historical-module.err" > "$REPORT_DIR/historical-v0.4.0.err"
+            fi
+          else
+            HISTORICAL_RC=$?
+            cat "$REPORT_DIR/gorelease-install.log" > "$REPORT_DIR/historical-v0.4.0.err"
+          fi
+
+          {
+            echo "Main API comparison snapshot: ${MAIN_BASELINE:-unresolved}"
+            echo "Status: $MAIN_STATUS (apidiff exit=$MAIN_RC)"
+            cat "$MAIN_RAW"
+          } > "$REPORT_DIR/main-api-diff.txt"
+          {
+            echo "Historical API differences against $HISTORICAL_BASELINE"
+            echo "Status: $HISTORICAL_STATUS (gorelease exit=$HISTORICAL_RC)"
+            echo "UNVERIFIED for release compatibility: the baseline uses a different module namespace."
+            echo "gorelease can suppress release diagnostics and its semver summary in this mode."
+            cat "$HISTORICAL_RAW"
+            cat "$REPORT_DIR/historical-v0.4.0.err"
+            if [ -s "$REPORT_DIR/historical-format.err" ]; then
+              cat "$REPORT_DIR/historical-format.err"
+            fi
+          } > "$REPORT_DIR/historical-v0.4.0.txt"
+          cat "$REPORT_DIR/main-api-diff.txt" "$REPORT_DIR/historical-v0.4.0.txt"
+          {
+            echo "main_rc=$MAIN_RC"
+            echo "main_status=$MAIN_STATUS"
+            echo "historical_rc=$HISTORICAL_RC"
+            echo "historical_status=$HISTORICAL_STATUS"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$MAIN_STATUS" = "complete" ] && [ "$HISTORICAL_STATUS" = "unverified" ]; then
+            echo "status=complete" >> "$GITHUB_OUTPUT"
+            echo "::warning::Main API findings remain warn-only; the separate v0.4.0 report is historical and unverified for release compatibility."
+          else
+            echo "status=tool-error" >> "$GITHUB_OUTPUT"
+            echo "::error::API report generation failed or did not complete; see both report files."
+            exit 1
+          fi
 
       - name: Upload report
+        id: upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-surface-diff-report
-          path: .reports/
+          path: ${{ runner.temp }}/api-surface-diff-report/
+          if-no-files-found: error
 
       - name: Comment PR
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.gorelease.outputs.status != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASELINE: ${{ steps.baseline.outputs.baseline }}
-          MODE: ${{ steps.baseline.outputs.mode }}
-          RC: ${{ steps.gorelease.outputs.rc }}
+          MAIN_BASELINE: ${{ steps.baseline.outputs.baseline }}
+          MAIN_STATUS: ${{ steps.gorelease.outputs.main_status }}
+          HISTORICAL_STATUS: ${{ steps.gorelease.outputs.historical_status }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
         run: |
           {
-            echo "## 🔍 API Surface Diff (gorelease)"
+            echo "## 🔍 API Surface Diff"
             echo ""
-            echo "Baseline: \`$BASELINE\` (mode=$MODE)"
-            echo ""
-            if [ ! -s .reports/gorelease.txt ]; then
-              echo "⚠ gorelease produced no output (exit=$RC). Tool may have crashed; check workflow logs."
+            echo "Main snapshot: \`$MAIN_BASELINE\` (status=$MAIN_STATUS)"
+            echo '```'
+            head -120 "$REPORT_DIR/main-api-diff.txt"
+            echo '```'
+            if [ "$MAIN_STATUS" = "complete" ]; then
+              echo "Completed main API findings are warn-only; coordinate breaking changes with downstream consumers."
             else
-              echo '```'
-              head -120 .reports/gorelease.txt
-              echo '```'
-              echo ""
-              echo "Full report: see Actions artifact \`api-surface-diff-report\`."
-              echo ""
-              echo "warn-only — does not block merge. Breaking changes (major-bumping incompatibilities) should be coordinated with downstream consumers (opcorbit, etc.) before merge."
+              echo "❌ Main comparison did not complete: tool/setup failure."
             fi
-          } > .reports/api-diff-comment.md
-          gh pr comment "$PR_NUMBER" --body-file .reports/api-diff-comment.md || true
+            echo ""
+            echo "Historical $HISTORICAL_BASELINE report (status=$HISTORICAL_STATUS) — UNVERIFIED for release compatibility."
+            echo "Its different module namespace can hide semver summary and release diagnostics."
+            echo '```'
+            head -120 "$REPORT_DIR/historical-v0.4.0.txt"
+            echo '```'
+            if [ "$HISTORICAL_STATUS" = "tool-error" ]; then
+              echo "❌ Historical report generation failed; see its raw output, stderr, and logs."
+            fi
+            echo ""
+            if [ "$UPLOAD_OUTCOME" = "success" ]; then
+              echo "Both full reports and raw output: Actions artifact \`api-surface-diff-report\`."
+            else
+              echo "Report upload failed; see workflow logs."
+            fi
+          } > "$REPORT_DIR/api-diff-comment.md"
+          gh pr comment "$PR_NUMBER" --body-file "$REPORT_DIR/api-diff-comment.md" || echo "::warning::Could not post API report comment."

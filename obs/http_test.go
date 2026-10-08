@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/obs"
+	"github.com/zanehu-ai/x-go/obs"
 )
 
 // TestDoWithContext_InjectsHeader 验证当 ctx 含 request_id 时，DoWithContext 将其注入请求头。

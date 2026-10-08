@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/zanehu-ai/synapse-go/auth"
-	"github.com/zanehu-ai/synapse-go/cache"
+	"github.com/zanehu-ai/x-go/auth"
+	"github.com/zanehu-ai/x-go/cache"
 )
 
 func TestTenantContextFromHeader(t *testing.T) {

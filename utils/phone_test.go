@@ -166,7 +166,7 @@ func TestUpdateFixtures(t *testing.T) {
 
 	doc := phoneVectorsFile{
 		Version:       1,
-		ReferenceImpl: "synapse-go/utils/phone.go",
+		ReferenceImpl: "x-go/utils/phone.go",
 		IsValid:       isValidCases,
 		Mask:          maskCases,
 	}

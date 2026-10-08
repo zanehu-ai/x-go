@@ -179,8 +179,8 @@ func writeIPVectorsJSON() error {
 		IsLinkLocal   []ipBoolCase        `json:"is_link_local"`
 	}{
 		Version:       1,
-		ReferenceImpl: "synapse-go/utils/ip.go",
-		Note:          "Regenerate via: cd synapse-go/utils && go test -update-fixtures . — see C4b Wave 1 SPEC §1.2",
+		ReferenceImpl: "x-go/utils/ip.go",
+		Note:          "Regenerate via: cd x-go/utils && go test -update-fixtures . — see C4b Wave 1 SPEC §1.2",
 		ParseClientIP: append([]parseClientIPCase(nil), parseClientIPCases...),
 		IsPrivate:     append([]ipBoolCase(nil), isPrivateCases...),
 		IsLoopback:    append([]ipBoolCase(nil), isLoopbackCases...),

@@ -1,4 +1,4 @@
-// Package utils hosts small, dependency-free helpers shared across synapse-go.
+// Package utils hosts small, dependency-free helpers shared across x-go.
 //
 // File ip.go is the Go port of the legacy Java IpUtil at
 // templates/game/backend/platform-core/platform-common/src/main/java/

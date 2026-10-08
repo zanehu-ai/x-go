@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/webhook/webhook.go",
-  "note": "Regenerate via: cd synapse-go/webhook \u0026\u0026 go test -run TestUpdateFixtures -update-fixtures .",
+  "reference_impl": "x-go/webhook/webhook.go",
+  "note": "Regenerate via: cd x-go/webhook \u0026\u0026 go test -run TestUpdateFixtures -update-fixtures .",
   "signing_vectors": [
     {
       "name": "standard_json_payload",

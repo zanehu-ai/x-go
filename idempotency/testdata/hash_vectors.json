@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/idempotency/idempotency.go",
+  "reference_impl": "x-go/idempotency/idempotency.go",
   "algorithm": "SHA-256",
   "encoding": "lowercase-hex with 'sha256:' prefix",
   "input": "raw request body bytes — NO JSON canonicalization, NO key sorting, whitespace-significant",
-  "note": "Frozen reference: synapse-go/idempotency.BodyHash. Do NOT modify without updating Java conformance test.",
+  "note": "Frozen reference: x-go/idempotency.BodyHash. Do NOT modify without updating Java conformance test.",
   "cases": [
     {
       "name": "simple_json",

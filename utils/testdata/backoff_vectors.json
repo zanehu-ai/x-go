@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/utils/backoff.go @ commit 150c813cd9616395736dab695d35032296a7156d",
-  "description": "Cross-language parity vectors for ExponentialBackoffCalculator. Generated/refreshed by `cd synapse-go/utils && go test -update-fixtures .` (TestBackoffJSONFixtureRoundTrip with the -update-fixtures flag). Loaded by Go's TestBackoffJSONFixtureRoundTrip and Java's ExponentialBackoffCalculatorParityTest (which finds this file via filesystem walk-up). Path ③ (pure-function reimpl + shared fixtures) per docs/migration/c4b-wave-1-spec.md.",
+  "reference_impl": "x-go/utils/backoff.go @ commit 150c813cd9616395736dab695d35032296a7156d",
+  "description": "Cross-language parity vectors for ExponentialBackoffCalculator. Generated/refreshed by `cd x-go/utils && go test -update-fixtures .` (TestBackoffJSONFixtureRoundTrip with the -update-fixtures flag). Loaded by Go's TestBackoffJSONFixtureRoundTrip and Java's ExponentialBackoffCalculatorParityTest (which finds this file via filesystem walk-up). Path ③ (pure-function reimpl + shared fixtures) per docs/migration/c4b-wave-1-spec.md.",
   "params": {
     "initialDelayMs": 600000,
     "multiplier": 2,

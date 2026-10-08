@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/job/cronguard.go",
+  "reference_impl": "x-go/job/cronguard.go",
   "cases": [
     {
       "name": "valid_utc_midnight",

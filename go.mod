@@ -1,4 +1,4 @@
-module github.com/zanehu-ai/synapse-go
+module github.com/zanehu-ai/x-go
 
 go 1.25.0
 

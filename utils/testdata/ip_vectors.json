@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/utils/ip.go",
-  "note": "Regenerate via: cd synapse-go/utils && go test -update-fixtures . — see C4b Wave 1 SPEC §1.2",
+  "reference_impl": "x-go/utils/ip.go",
+  "note": "Regenerate via: cd x-go/utils && go test -update-fixtures . — see C4b Wave 1 SPEC §1.2",
   "parse_client_ip": [
     {
       "name": "empty",

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/zanehu-ai/synapse-go/resp"
+	"github.com/zanehu-ai/x-go/resp"
 )
 
 // ParseIDParam reads ":id" from the route, writes a 400 error and returns false if invalid.

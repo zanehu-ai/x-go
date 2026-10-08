@@ -18,7 +18,7 @@ package auth
 // Shared test secret: "interop-shared-secret-32chars!!1" (32 bytes, passes
 // JwtUtil's minSecretLength=32 validation).
 //
-// Run: cd synapse-go && go test ./auth/... -run TestInterop -v
+// Run: cd x-go && go test ./auth/... -run TestInterop -v
 
 import (
 	"encoding/json"

@@ -19,7 +19,7 @@
 //   - IsExpiringSoon: 30-min expiry warning (mirrors JwtUtil.isTokenExpiringSoon)
 //   - SelfTest: startup self-check (mirrors JwtUtil.getHealthStatus round-trip)
 //
-// Cross-language interop vectors: synapse-go/auth/testdata/jwt_interop_vectors.json
+// Cross-language interop vectors: x-go/auth/testdata/jwt_interop_vectors.json
 package auth
 
 import (

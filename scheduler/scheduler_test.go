@@ -9,7 +9,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 
-	"github.com/zanehu-ai/synapse-go/lock"
+	"github.com/zanehu-ai/x-go/lock"
 )
 
 func TestScheduler_ExecutesTask(t *testing.T) {

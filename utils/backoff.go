@@ -1,10 +1,10 @@
 // Package utils contains stateless helper utilities shared across the Synapse
 // platform. The backoff helper here is a thin, semantics-preserving wrapper over
-// synapse-go/job.BackoffPolicy, exposed with the call shape that 818-gaming
+// x-go/job.BackoffPolicy, exposed with the call shape that 818-gaming
 // (templates/game) ExponentialBackoffCalculator.java uses, so cargo / game / future
 // templates can share the same exponential-backoff math.
 //
-// # Relationship to synapse-go/job.BackoffPolicy
+// # Relationship to x-go/job.BackoffPolicy
 //
 // job.BackoffPolicy already encodes the same exponential formula
 // (delay = base * multiplier^attempt, capped at max) and is the canonical
@@ -39,7 +39,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/zanehu-ai/synapse-go/job"
+	"github.com/zanehu-ai/x-go/job"
 )
 
 // ErrNegativeRetryCount is returned by Calculator.CalculateBackoff and

@@ -1,4 +1,4 @@
-# synapse-go CI
+# x-go CI
 name: CI
 
 on:

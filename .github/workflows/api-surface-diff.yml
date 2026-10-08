@@ -96,7 +96,7 @@ jobs:
           if [[ "$MAIN_BASELINE" =~ ^[0-9a-f]{40}$ ]]; then
             if install_tool apidiff; then
               APIDIFF="$TOOL_GOPATH/bin/apidiff"
-              if BASE_WT=$(mktemp -d "$RUNNER_TEMP/synapse-go-main.XXXXXX"); then
+              if BASE_WT=$(mktemp -d "$RUNNER_TEMP/x-go-main.XXXXXX"); then
                 trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
                 if git worktree add --detach "$BASE_WT" "$MAIN_BASELINE" 2> "$REPORT_DIR/main-worktree.err"; then
                   if BASE_MODULE=$(cd "$BASE_WT" && GOWORK=off go list -m) &&

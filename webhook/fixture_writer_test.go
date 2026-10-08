@@ -256,7 +256,7 @@ func buildSigningVectors() []signingVector {
 	return vv
 }
 
-// TestUpdateFixtures writes synapse-go/webhook/testdata/signing_vectors.json
+// TestUpdateFixtures writes x-go/webhook/testdata/signing_vectors.json
 // when invoked with -update-fixtures. It is also a correctness check: every
 // vector is sign-then-verify round-tripped against the frozen Go implementation
 // so a future refactor of the test data cannot silently produce a broken fixture.
@@ -305,8 +305,8 @@ func TestUpdateFixtures(t *testing.T) {
 
 	root := fixtureRoot{
 		Version:       1,
-		ReferenceImpl: "synapse-go/webhook/webhook.go",
-		Note:          "Regenerate via: cd synapse-go/webhook && go test -run TestUpdateFixtures -update-fixtures .",
+		ReferenceImpl: "x-go/webhook/webhook.go",
+		Note:          "Regenerate via: cd x-go/webhook && go test -run TestUpdateFixtures -update-fixtures .",
 		Vectors:       vectors,
 	}
 	data, err := json.MarshalIndent(root, "", "  ")

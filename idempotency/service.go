@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zanehu-ai/synapse-go/jobpayload"
+	"github.com/zanehu-ai/x-go/jobpayload"
 )
 
 var (

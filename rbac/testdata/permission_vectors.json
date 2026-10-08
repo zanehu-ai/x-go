@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/rbac/rbac.go",
+  "reference_impl": "x-go/rbac/rbac.go",
   "exact_match": [
     {
       "name": "exact_simple",

@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/zanehu-ai/synapse-go/auth"
-	"github.com/zanehu-ai/synapse-go/obs"
+	"github.com/zanehu-ai/x-go/auth"
+	"github.com/zanehu-ai/x-go/obs"
 )
 
 // HeaderTokenExpiringSoon is injected when the authenticated token is within

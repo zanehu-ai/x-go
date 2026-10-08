@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/zanehu-ai/synapse-go/logger"
+	"github.com/zanehu-ai/x-go/logger"
 )
 
 const (

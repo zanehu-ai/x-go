@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## 项目概述
-synapse-go — Go 共享基础设施库，为所有 Go 产品提供统一的基础设施和平台能力。
+x-go — Go 共享基础设施库，为所有 Go 产品提供统一的基础设施和平台能力。
 
 ## 技术栈
 - Go 1.24
@@ -54,7 +54,7 @@ make coverage      # 生成覆盖率 HTML 报告
 ```
 
 ## 消费方
-- 818-cargo（`go get github.com/techfitmaster/synapse-go`）
+- 818-cargo（`go get github.com/zanehu-ai/x-go`）
 - 未来所有 Go 产品
 
 ## 规范

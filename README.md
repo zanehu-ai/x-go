@@ -1,6 +1,20 @@
-# synapse-go
+# x-go
 
 Go 共享基础设施库。为所有 Go 产品提供统一的基础设施层（L1）和平台能力层（L2）。
+
+## Module path change
+
+模块路径已从 `github.com/zanehu-ai/synapse-go` 改为 `github.com/zanehu-ai/x-go`。
+
+`v0.6.0` 是第一个声明新路径的 tag。`v0.5.0` 及更早版本仍然只能按旧路径导入：`github.com/zanehu-ai/synapse-go@v0.5.0`。GitHub 仓库改名重定向不会修正这一点：Go 工具链会拒绝 go.mod 里的 module 路径与请求路径不一致的模块。
+
+调用方在 `v0.6.0` 打上 tag 之后，直接改 require 和 import，不要在 go.mod 里加 `replace`：
+
+```bash
+go get github.com/zanehu-ai/x-go@v0.6.0 && find . -name '*.go' -print0 | xargs -0 sed -i 's|github.com/zanehu-ai/synapse-go|github.com/zanehu-ai/x-go|g' && gofmt -w . && go mod tidy
+```
+
+单个 import 也可以用 `gofmt -w -r '"github.com/zanehu-ai/synapse-go/config" -> "github.com/zanehu-ai/x-go/config"'` 这类表达式重写，每个包路径写一条。
 
 ## 安装
 
@@ -8,7 +22,7 @@ Go 共享基础设施库。为所有 Go 产品提供统一的基础设施层（L
 # 配置私有模块访问（如仓库为 private）
 export GOPRIVATE=github.com/zanehu-ai/*
 
-go get github.com/zanehu-ai/synapse-go@latest
+go get github.com/zanehu-ai/x-go@latest
 ```
 
 ## 包列表
@@ -74,11 +88,11 @@ go get github.com/zanehu-ai/synapse-go@latest
 ```go
 import (
     "github.com/gin-gonic/gin"
-    "github.com/zanehu-ai/synapse-go/config"
-    "github.com/zanehu-ai/synapse-go/db"
-    "github.com/zanehu-ai/synapse-go/logger"
-    "github.com/zanehu-ai/synapse-go/resp"
-    "github.com/zanehu-ai/synapse-go/middleware"
+    "github.com/zanehu-ai/x-go/config"
+    "github.com/zanehu-ai/x-go/db"
+    "github.com/zanehu-ai/x-go/logger"
+    "github.com/zanehu-ai/x-go/resp"
+    "github.com/zanehu-ai/x-go/middleware"
 )
 
 func main() {
@@ -120,13 +134,13 @@ make coverage      # 生成覆盖率报告
 
 ## 版本管理
 
-推送 tag 发布新版本：
+推送 tag 发布新版本（模块路径变更后的第一版是 `v0.6.0`，见上方 Module path change）：
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
 消费方更新：
 ```bash
-go get github.com/zanehu-ai/synapse-go@v0.3.0
+go get github.com/zanehu-ai/x-go@v0.6.0
 ```

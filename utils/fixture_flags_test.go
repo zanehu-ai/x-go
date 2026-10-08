@@ -3,7 +3,7 @@ package utils
 import "flag"
 
 // updateFixtures is the package-level flag shared by every parity-fixture
-// regeneration test in synapse-go/utils (phone, and — once rebased on
+// regeneration test in x-go/utils (phone, and — once rebased on
 // this file — backoff and ip). Each parity test reads *updateFixtures to
 // decide whether to rewrite its testdata/*.json fixture in lockstep with
 // the corresponding Java conformance test on the templates/game side.
@@ -19,5 +19,5 @@ import "flag"
 var updateFixtures = flag.Bool(
 	"update-fixtures",
 	false,
-	"regenerate synapse-go/utils/testdata/*.json fixtures from in-test cases (parity with Java conformance JSON)",
+	"regenerate x-go/utils/testdata/*.json fixtures from in-test cases (parity with Java conformance JSON)",
 )

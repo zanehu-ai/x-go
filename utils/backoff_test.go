@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zanehu-ai/synapse-go/job"
+	"github.com/zanehu-ai/x-go/job"
 )
 
 // updateFixtures lives in fixture_flags_test.go (canonical home for the
@@ -18,7 +18,7 @@ import (
 // vectors. Both the Go side (this file) and the Java side
 // (templates/game/.../ExponentialBackoffCalculatorParityTest.java) read this
 // exact file — the Java test walks up from its working directory until it
-// finds synapse-go/utils/testdata/, so there is exactly one copy.
+// finds x-go/utils/testdata/, so there is exactly one copy.
 const backoffFixturesPath = "testdata/backoff_vectors.json"
 
 // TestCalculateBackoffJavaParity asserts the Java
@@ -275,7 +275,7 @@ func TestMaxRetryCountAccessor(t *testing.T) {
 // Go reference computes every expected value using DefaultCalculator (or, for
 // should_retry / is_permanent_failure, a per-fixture custom max). Java's
 // ExponentialBackoffCalculatorParityTest loads the same on-disk file by walking
-// up from its working directory until it finds synapse-go/utils/testdata/, so
+// up from its working directory until it finds x-go/utils/testdata/, so
 // there is exactly one copy of the fixture set — that is the parity check
 // (path ③ of the C4b cross-language validation strategy).
 type backoffFixtureFile struct {

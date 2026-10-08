@@ -10,14 +10,14 @@ package job
 //
 // Run normally:
 //
-//	cd synapse-go && go test ./job/... -race -v
+//	cd x-go && go test ./job/... -race -v
 //
 // Regenerate fixture:
 //
-//	cd synapse-go && go test ./job/... -run TestCronGuardUpdateFixtures -update-cron-fixtures
+//	cd x-go && go test ./job/... -run TestCronGuardUpdateFixtures -update-cron-fixtures
 //
 // Note: the -update-cron-fixtures flag is intentionally distinct from
-// synapse-go/utils -update-fixtures to avoid cross-package flag collisions when
+// x-go/utils -update-fixtures to avoid cross-package flag collisions when
 // running tests from the workspace root.
 
 import (
@@ -33,7 +33,7 @@ import (
 var updateCronFixtures = flag.Bool(
 	"update-cron-fixtures",
 	false,
-	"regenerate synapse-go/job/testdata/cron_guard_vectors.json from in-test cases",
+	"regenerate x-go/job/testdata/cron_guard_vectors.json from in-test cases",
 )
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ func TestCronGuardUpdateFixtures(t *testing.T) {
 
 	doc := cronGuardVectorsFile{
 		Version:       1,
-		ReferenceImpl: "synapse-go/job/cronguard.go",
+		ReferenceImpl: "x-go/job/cronguard.go",
 		Cases:         cronGuardCases,
 	}
 

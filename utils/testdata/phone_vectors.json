@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reference_impl": "synapse-go/utils/phone.go",
+  "reference_impl": "x-go/utils/phone.go",
   "is_valid": [
     {
       "name": "empty",

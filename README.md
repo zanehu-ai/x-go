@@ -11,10 +11,10 @@ Go 共享基础设施库。为所有 Go 产品提供统一的基础设施层（L
 调用方在 `v0.6.0` 打上 tag 之后，直接改 require 和 import，不要在 go.mod 里加 `replace`：
 
 ```bash
-go get github.com/zanehu-ai/x-go@v0.6.0 && find . -name '*.go' -print0 | xargs -0 sed -i 's|github.com/zanehu-ai/synapse-go|github.com/zanehu-ai/x-go|g' && gofmt -w . && go mod tidy
+go get github.com/zanehu-ai/x-go@v0.6.0 && find . -name '*.go' -print0 | xargs -0 perl -pi -e 's#github.com/zanehu-ai/synapse-go#github.com/zanehu-ai/x-go#g' && gofmt -w . && go mod tidy
 ```
 
-单个 import 也可以用 `gofmt -w -r '"github.com/zanehu-ai/synapse-go/config" -> "github.com/zanehu-ai/x-go/config"'` 这类表达式重写，每个包路径写一条。
+`perl -pi` 在 GNU 和 macOS 上写法相同。若用 `sed`，GNU 是 `sed -i`，macOS 是 `sed -i ''`。单个 import 也可以用 `gofmt -w -r '"github.com/zanehu-ai/synapse-go/config" -> "github.com/zanehu-ai/x-go/config"'`，每个包路径写一条。`go mod tidy` 会去掉不再被引用的旧 require；不要加 `replace`。
 
 ## 安装
 

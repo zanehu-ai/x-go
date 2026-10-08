@@ -65,6 +65,7 @@ jobs:
           MAIN_RC=1
           HISTORICAL_STATUS="tool-error"
           HISTORICAL_RC=1
+          MODULE_PATH_CHANGED=0
           MAIN_RAW="$REPORT_DIR/main-api-diff.raw.txt"
           HISTORICAL_RAW="$REPORT_DIR/historical-v0.4.0.raw.txt"
           : > "$MAIN_RAW"
@@ -91,16 +92,70 @@ jobs:
               *) printf '%s\n' "$1" | sed -E 's#/v[0-9]+$##' ;;
             esac
           }
+          module_path_from_dir() {
+            local dir=$1
+            (cd "$dir" && GOWORK=off go mod edit -json) | python3 -c 'import json, sys; print(json.load(sys.stdin)["Module"]["Path"])'
+          }
+          historical_base_arg() {
+            if [ "${MODULE_PATH_CHANGED:-0}" = "1" ]; then
+              printf '%s@%s\n' "$HISTORICAL_MODULE" "$HISTORICAL_BASELINE"
+            else
+              printf '%s\n' "$HISTORICAL_BASELINE"
+            fi
+          }
+          run_historical_gorelease() {
+            local base_arg=$1
+            if GOWORK=off "$GORELEASE" -base="$base_arg" > "$HISTORICAL_RAW" 2> "$REPORT_DIR/historical-v0.4.0.err"; then
+              HISTORICAL_RC=0
+            else
+              HISTORICAL_RC=$?
+            fi
+            if [ "$HISTORICAL_RC" -le 1 ] && [ -s "$HISTORICAL_RAW" ] &&
+                [ ! -s "$REPORT_DIR/historical-v0.4.0.err" ] &&
+                python3 - "$HISTORICAL_RAW" "$HISTORICAL_MODULE" "$CURRENT_MODULE" 2> "$REPORT_DIR/historical-format.err" <<'PY'
+          import pathlib, sys
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          if not text.endswith("\n\n"):
+              sys.exit("Historical report is truncated or has no final package terminator.")
+          packages = set()
+          for block in text[:-2].split("\n\n"):
+              lines = block.splitlines()
+              if not lines or not lines[0].startswith("# "):
+                  sys.exit("Historical report has an unexpected package header.")
+              package = lines[0][2:]
+              if any(not char.isprintable() or char.isspace() for char in package) or any(part in ("", ".", "..") for part in package.split("/")) or package in packages:
+                  sys.exit("Historical report has an invalid or repeated package path.")
+              if not any(package == module or package.startswith(module + "/") for module in sys.argv[2:]):
+                  sys.exit("Historical report package is outside the compared modules.")
+              packages.add(package)
+              sections, details = [], 0
+              for line in lines[1:]:
+                  if line in ("## incompatible changes", "## compatible changes"):
+                      if (sections and not details) or line in sections or (sections and line == "## incompatible changes"):
+                          sys.exit("Historical report has an empty, repeated, or unordered section.")
+                      sections.append(line)
+                      details = 0
+                  elif sections and (line in ("package added", "package removed") or (": " in line and not line.startswith("#") and all(part.strip() for part in line.split(": ", 1)))):
+                      details += 1
+                  else:
+                      sys.exit("Historical report has a package error or unexpected content.")
+              if not sections or not details:
+                  sys.exit("Historical report has no complete change section.")
+          PY
+            then
+              HISTORICAL_STATUS=unverified
+            fi
+          }
 
           # Compare against the captured SHA, never a later-moving branch ref.
           if [[ "$MAIN_BASELINE" =~ ^[0-9a-f]{40}$ ]]; then
             if install_tool apidiff; then
               APIDIFF="$TOOL_GOPATH/bin/apidiff"
-              if BASE_WT=$(mktemp -d "$RUNNER_TEMP/x-go-main.XXXXXX"); then
+              if BASE_WT=$(mktemp -d "$RUNNER_TEMP/api-base-main.XXXXXX"); then
                 trap 'git worktree remove --force "$BASE_WT" 2>/dev/null || true' EXIT
                 if git worktree add --detach "$BASE_WT" "$MAIN_BASELINE" 2> "$REPORT_DIR/main-worktree.err"; then
-                  if BASE_MODULE=$(cd "$BASE_WT" && GOWORK=off go list -m) &&
-                      CURRENT_MODULE=$(GOWORK=off go list -m); then
+                  if BASE_MODULE=$(module_path_from_dir "$BASE_WT") &&
+                      CURRENT_MODULE=$(module_path_from_dir "."); then
                     if [ -n "$BASE_MODULE" ] && [ "$BASE_MODULE" = "$CURRENT_MODULE" ]; then
                       if (cd "$BASE_WT" && GOWORK=off GOFLAGS=-mod=readonly "$APIDIFF" -m -w "$REPORT_DIR/main-api-base.gob" "$BASE_MODULE") > "$REPORT_DIR/main-baseline.log" 2>&1; then
                         if [ -s "$REPORT_DIR/main-api-base.gob" ]; then
@@ -119,6 +174,21 @@ jobs:
                       else
                         MAIN_RC=$?
                         cat "$REPORT_DIR/main-baseline.log" > "$MAIN_RAW"
+                      fi
+                    elif [ -n "$BASE_MODULE" ] && [ -n "$CURRENT_MODULE" ]; then
+                      MODULE_PATH_CHANGED=1
+                      MAIN_RC=0
+                      MAIN_STATUS=skipped
+                      PATH_CHANGE_NOTE="module path changed from ${BASE_MODULE} to ${CURRENT_MODULE} (breaking, expected for a minor bump such as v0.6.0)"
+                      echo "Skipped base-vs-PR API comparison: ${PATH_CHANGE_NOTE}." > "$MAIN_RAW"
+                      echo "::warning::${PATH_CHANGE_NOTE}"
+                      if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                        {
+                          echo "> [!WARNING]"
+                          echo "> ${PATH_CHANGE_NOTE}."
+                          echo ">"
+                          echo "> Skipped the base-vs-PR API comparison. The historical baseline comparison still runs."
+                        } >> "$GITHUB_STEP_SUMMARY"
                       fi
                     else
                       echo "Cannot compare different modules: main=$BASE_MODULE, PR=$CURRENT_MODULE." > "$MAIN_RAW"
@@ -154,52 +224,21 @@ jobs:
                 HISTORICAL_MODULE=$(cd "$REPORT_DIR" && GOWORK=off go mod edit -json "$BASE_GO_MOD" 2>> "$REPORT_DIR/historical-module.err" | python3 -c 'import json, sys; print(json.load(sys.stdin)["Module"]["Path"])' 2>> "$REPORT_DIR/historical-module.err"); then
               if [ -n "$HISTORICAL_MODULE" ] &&
                   [ "$(module_prefix "$HISTORICAL_MODULE")" != "$(module_prefix "$CURRENT_MODULE")" ]; then
-                if GOWORK=off "$GORELEASE" -base="$HISTORICAL_BASELINE" > "$HISTORICAL_RAW" 2> "$REPORT_DIR/historical-v0.4.0.err"; then
-                  HISTORICAL_RC=0
-                else
-                  HISTORICAL_RC=$?
-                fi
-                if [ "$HISTORICAL_RC" -le 1 ] && [ -s "$HISTORICAL_RAW" ] &&
-                    [ ! -s "$REPORT_DIR/historical-v0.4.0.err" ] &&
-                    python3 - "$HISTORICAL_RAW" "$HISTORICAL_MODULE" "$CURRENT_MODULE" 2> "$REPORT_DIR/historical-format.err" <<'PY'
-          import pathlib, sys
-          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-          if not text.endswith("\n\n"):
-              sys.exit("Historical report is truncated or has no final package terminator.")
-          packages = set()
-          for block in text[:-2].split("\n\n"):
-              lines = block.splitlines()
-              if not lines or not lines[0].startswith("# "):
-                  sys.exit("Historical report has an unexpected package header.")
-              package = lines[0][2:]
-              if any(not char.isprintable() or char.isspace() for char in package) or any(part in ("", ".", "..") for part in package.split("/")) or package in packages:
-                  sys.exit("Historical report has an invalid or repeated package path.")
-              if not any(package == module or package.startswith(module + "/") for module in sys.argv[2:]):
-                  sys.exit("Historical report package is outside the compared modules.")
-              packages.add(package)
-              sections, details = [], 0
-              for line in lines[1:]:
-                  if line in ("## incompatible changes", "## compatible changes"):
-                      if (sections and not details) or line in sections or (sections and line == "## incompatible changes"):
-                          sys.exit("Historical report has an empty, repeated, or unordered section.")
-                      sections.append(line)
-                      details = 0
-                  elif sections and (line in ("package added", "package removed") or (": " in line and not line.startswith("#") and all(part.strip() for part in line.split(": ", 1)))):
-                      details += 1
-                  else:
-                      sys.exit("Historical report has a package error or unexpected content.")
-              if not sections or not details:
-                  sys.exit("Historical report has no complete change section.")
-          PY
-                then
-                  HISTORICAL_STATUS=unverified
-                fi
+                run_historical_gorelease "$(historical_base_arg)"
               else
                 echo "Historical baseline module is not the expected cross-module comparison; verification is incomplete." > "$REPORT_DIR/historical-v0.4.0.err"
               fi
             else
               HISTORICAL_RC=$?
               cat "$REPORT_DIR/historical-module.err" > "$REPORT_DIR/historical-v0.4.0.err"
+              if [ "${MODULE_PATH_CHANGED:-0}" = "1" ] && [ -n "${CURRENT_MODULE:-}" ] &&
+                  git show "${HISTORICAL_BASELINE}:go.mod" > "$REPORT_DIR/historical-baseline.go.mod" 2>> "$REPORT_DIR/historical-module.err" &&
+                  HISTORICAL_MODULE=$(GOWORK=off go mod edit -json "$REPORT_DIR/historical-baseline.go.mod" | python3 -c 'import json, sys; print(json.load(sys.stdin)["Module"]["Path"])') &&
+                  [ -n "$HISTORICAL_MODULE" ] &&
+                  [ "$(module_prefix "$HISTORICAL_MODULE")" != "$(module_prefix "$CURRENT_MODULE")" ]; then
+                : > "$REPORT_DIR/historical-v0.4.0.err"
+                run_historical_gorelease "$(historical_base_arg)"
+              fi
             fi
           else
             HISTORICAL_RC=$?
@@ -232,6 +271,9 @@ jobs:
           if [ "$MAIN_STATUS" = "complete" ] && [ "$HISTORICAL_STATUS" = "unverified" ]; then
             echo "status=complete" >> "$GITHUB_OUTPUT"
             echo "::warning::Main API findings remain warn-only; the separate v0.4.0 report is historical and unverified for release compatibility."
+          elif [ "$MAIN_STATUS" = "skipped" ] && [ "$HISTORICAL_STATUS" = "unverified" ]; then
+            echo "status=complete" >> "$GITHUB_OUTPUT"
+            echo "::warning::module path changed from ${BASE_MODULE} to ${CURRENT_MODULE} (breaking, expected for a minor bump such as v0.6.0)"
           else
             echo "status=tool-error" >> "$GITHUB_OUTPUT"
             echo "::error::API report generation failed or did not complete; see both report files."
@@ -266,6 +308,8 @@ jobs:
             echo '```'
             if [ "$MAIN_STATUS" = "complete" ]; then
               echo "Completed main API findings are warn-only; coordinate breaking changes with downstream consumers."
+            elif [ "$MAIN_STATUS" = "skipped" ]; then
+              echo "Skipped base-vs-PR API comparison because the module path changed (breaking, expected for a minor bump such as v0.6.0). The historical baseline comparison still runs."
             else
               echo "❌ Main comparison did not complete: tool/setup failure."
             fi

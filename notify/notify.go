@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zanehu-ai/synapse-go/mailer"
-	"github.com/zanehu-ai/synapse-go/timeutil"
+	"github.com/zanehu-ai/x-go/mailer"
+	"github.com/zanehu-ai/x-go/timeutil"
 )
 
 // Message represents a notification to be sent.

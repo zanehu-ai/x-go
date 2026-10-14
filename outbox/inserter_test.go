@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/outbox"
+	"github.com/zanehu-ai/x-go/outbox"
 )
 
 // Compile-time checks: both concrete types must satisfy the Inserter interface.

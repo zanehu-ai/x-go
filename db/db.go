@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/zanehu-ai/synapse-go/config"
+	"github.com/zanehu-ai/x-go/config"
 )
 
 // New initializes a MySQL connection pool via GORM with the given config.

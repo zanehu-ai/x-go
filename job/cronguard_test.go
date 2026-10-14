@@ -10,14 +10,14 @@ package job
 //
 // Run normally:
 //
-//	cd synapse-go && go test ./job/... -race -v
+//	cd x-go && go test ./job/... -race -v
 //
 // Regenerate fixture:
 //
-//	cd synapse-go && go test ./job/... -run TestCronGuardUpdateFixtures -update-cron-fixtures
+//	cd x-go && go test ./job/... -run TestCronGuardUpdateFixtures -update-cron-fixtures
 //
 // Note: the -update-cron-fixtures flag is intentionally distinct from
-// synapse-go/utils -update-fixtures to avoid cross-package flag collisions when
+// x-go/utils -update-fixtures to avoid cross-package flag collisions when
 // running tests from the workspace root.
 
 import (

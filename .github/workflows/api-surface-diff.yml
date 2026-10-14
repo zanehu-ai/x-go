@@ -65,7 +65,7 @@ jobs:
             # (apidiff needs ./... or module-path args, NOT git refs).
             go install golang.org/x/exp/cmd/apidiff@latest
             APIDIFF=$(go env GOPATH)/bin/apidiff
-            BASE_WT="$RUNNER_TEMP/synapse-go-baseline"
+            BASE_WT="$RUNNER_TEMP/x-go-baseline"
             rm -rf "$BASE_WT"
             # Unconditional cleanup so self-hosted runners do not accumulate
             # stale worktrees + .git/worktrees/ entries on apidiff failures
@@ -92,7 +92,7 @@ jobs:
                 # parse error in the next apidiff invocation, which is
                 # captured into gorelease.txt for the reviewer.
                 #
-                # Set a floor: a healthy synapse-go baseline is tens of KB.
+                # Set a floor: a healthy x-go baseline is tens of KB.
                 # < 100 bytes almost certainly = scan aborted very early.
                 BASE_SIZE=$(wc -c < .reports/api-base.json | tr -d ' ')
                 if [ -z "$BASE_SIZE" ] || [ "$BASE_SIZE" -lt 100 ]; then
@@ -100,7 +100,7 @@ jobs:
                     echo "## API Surface Diff — baseline suspiciously small ($BASE_SIZE bytes)"
                     echo ""
                     echo "apidiff returned rc=0 but produced a tiny baseline file."
-                    echo "Floor is 100 bytes; healthy synapse-go baseline is tens of KB."
+                    echo "Floor is 100 bytes; healthy x-go baseline is tens of KB."
                     echo "Likely the baseline worktree failed to scan most packages."
                     echo ""
                     echo "apidiff -w log:"

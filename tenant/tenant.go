@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/zanehu-ai/synapse-go/resp"
+	"github.com/zanehu-ai/x-go/resp"
 )
 
 // Tenant is the minimal reusable tenant identity shape.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	"github.com/zanehu-ai/synapse-go/config"
+	"github.com/zanehu-ai/x-go/config"
 )
 
 // New initializes a Redis client and verifies connectivity with a ping.

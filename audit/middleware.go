@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/zanehu-ai/synapse-go/ginutil"
+	"github.com/zanehu-ai/x-go/ginutil"
 )
 
 // Middleware returns a Gin middleware that automatically logs write operations

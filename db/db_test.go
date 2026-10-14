@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/config"
+	"github.com/zanehu-ai/x-go/config"
 )
 
 const testDSN = "root:root@tcp(127.0.0.1:3306)/test_818_shared?parseTime=true&charset=utf8mb4"

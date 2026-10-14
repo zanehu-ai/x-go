@@ -103,9 +103,9 @@ func TestPermissionVectorsFixture(t *testing.T) {
 }
 
 // TestUpdateFixtures writes the canonical fixture JSON to
-// synapse-go/rbac/testdata/permission_vectors.json when invoked with
+// x-go/rbac/testdata/permission_vectors.json when invoked with
 //
-//	go test ./synapse-go/rbac/... -update-fixtures -run TestUpdateFixtures -count=1
+//	go test ./x-go/rbac/... -update-fixtures -run TestUpdateFixtures -count=1
 //
 // Without the flag the test is a no-op so it does not disturb normal CI runs.
 func TestUpdateFixtures(t *testing.T) {

@@ -3,7 +3,7 @@ package redis
 import (
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/config"
+	"github.com/zanehu-ai/x-go/config"
 )
 
 // TC-HAPPY-REDIS-001: connect to Redis with valid config

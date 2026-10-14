@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 ## 项目概述
-synapse-go — Go 共享基础设施库，为所有 Go 产品提供统一的基础设施和平台能力。
+x-go — Go 共享基础设施库，为 Go 产品提供统一的基础设施和平台能力。仓库名为 `x-go`，Go module 保持 `github.com/zanehu-ai/x-go`。
 
 ## 技术栈
-- Go 1.24
+- Go 1.25（最低版本以 `go.mod` 为准）
 - Gin（HTTP 框架）
 - GORM + MySQL（数据库）
 - go-redis/v8（缓存）
@@ -14,6 +14,8 @@ synapse-go — Go 共享基础设施库，为所有 Go 产品提供统一的基�
 
 ## 架构
 纯 Go library（无 main 入口），按功能分包：
+
+能力包保留在 module 根目录；不得为统一外观搬到 `src/` 或 `pkg/`，以免改变公开 import 路径。R&D 工作区将本仓放在 `libraries/x-go`。本次授权将 module/import 身份迁移到 `github.com/zanehu-ai/x-go`；尚未发布新模块版本。
 
 ```
 config/       → 配置结构体 + 环境变量加载
@@ -54,8 +56,8 @@ make coverage      # 生成覆盖率 HTML 报告
 ```
 
 ## 消费方
-- 818-cargo（`go get github.com/techfitmaster/synapse-go`）
-- 未来所有 Go 产品
+- x-core、x-pay、Cargo 等 Go 消费方按各自已验证的版本或源码 pin 接入。
+- 当前 module 为 `github.com/zanehu-ai/x-go`；历史 `github.com/techfitmaster/synapse-go` 和 `github.com/zanehu-ai/synapse-go` 发布内容保持不变。消费者在新模块发布前使用校验过来源与内容的仅名称转换依赖；不升级实现、不修改原始缓存或固定快照。
 
 ## 规范
 - 每个包独立、无循环依赖

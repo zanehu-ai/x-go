@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/obs"
+	"github.com/zanehu-ai/x-go/obs"
 )
 
 // captureHandler 是测试用 slog.Handler，将所有记录缓冲到 bytes.Buffer（JSON 格式）。

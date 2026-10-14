@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zanehu-ai/synapse-go/obs"
+	"github.com/zanehu-ai/x-go/obs"
 )
 
 // ── Request-ID ────────────────────────────────────────────────────────────────

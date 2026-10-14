@@ -1,132 +1,87 @@
-# synapse-go
+# x-go
 
-Go 共享基础设施库。为所有 Go 产品提供统一的基础设施层（L1）和平台能力层（L2）。
+Reusable Go infrastructure and platform capabilities for x-core, x-pay, Cargo and other Go services. This repository is a library; applications own their startup, configuration and business workflows.
 
-## 安装
+The repository is `x-go`; the Go module and import prefix are **`github.com/zanehu-ai/x-go`**. Packages live at the module root. The local checkout is `libraries/x-go`. The canonical module rename is prepared locally; it has not been published by this change. Existing consumers use checksum-verified, names-only dependency overlays until canonical releases are available.
+
+## Requirements and installation
+
+[go.mod](go.mod) declares Go **1.25.0**; [CI](.github/workflows/ci.yml) uses Go 1.25. Private consumers need Git access to the module and an appropriate `GOPRIVATE` setting. Add the organization pattern to your existing private-module configuration rather than replacing unrelated entries.
+
+From the consuming Go module, select a reviewed tag or commit:
 
 ```bash
-# 配置私有模块访问（如仓库为 private）
-export GOPRIVATE=github.com/zanehu-ai/*
-
-go get github.com/zanehu-ai/synapse-go@latest
+# Replace <version-or-commit> with the dependency revision you have reviewed.
+# After a canonical module release is published:
+go get github.com/zanehu-ai/x-go@<version-or-commit>
 ```
 
-## 包列表
+Keep the chosen version in the consumer's `go.mod` and `go.sum`. Existing consumers of older module identities require their own migration; changing a checkout folder does not migrate imports.
 
-### L1 — 基础设施
+## Package guide
 
-| 包 | 说明 |
-|---|------|
-| `config` | 配置结构体（MySQL/Redis/Auth/SMTP）+ `GetEnv()` 环境变量加载 |
-| `db` | MySQL 连接池初始化（GORM） |
-| `redis` | Redis 连接初始化 |
-| `logger` | 结构化日志（zap） |
-| `migrate` | 数据库迁移（golang-migrate） |
-| `timeutil` | 时间工具函数 |
-| `mailer` | 邮件发送（SMTP + NoopMailer） |
+| Area | Packages | Responsibility |
+| --- | --- | --- |
+| Configuration and connections | [config](config/), [db](db/), [redis](redis/) | Configuration types, environment helpers, validation, MySQL/GORM and Redis clients |
+| HTTP and responses | [ginutil](ginutil/), [middleware](middleware/), [resp](resp/), [bizerr](bizerr/) | Gin helpers, request IDs, CORS, auth adapters and response/error envelopes |
+| Identity and access | [auth](auth/), [rbac](rbac/), [tenant](tenant/) | Token contracts, permission checks and tenant context |
+| Secrets and personal data | [crypto](crypto/), [secretbox](secretbox/README.md), [pii](pii/) | Hashing/TOTP, versioned AES-GCM encryption and redaction |
+| Rate limits and coordination | [ratelimit](ratelimit/), [runtimeguard](runtimeguard/), [lock](lock/), [circuitbreaker](circuitbreaker/) | Request limiting, leases, distributed locks and circuit breakers |
+| Idempotency | [idempotent](idempotent/), [idempotency](idempotency/) | Middleware/service checks and persistent request/response records |
+| Jobs and events | [job](job/), [jobpayload](jobpayload/), [outbox](outbox/), [reliableevents](reliableevents/), [event](event/), [scheduler](scheduler/) | Job contracts, payloads, durable delivery and in-process scheduling/events |
+| Files and media | [files](files/), [storage](storage/), [imaging](imaging/) | File metadata, storage drivers, image validation and processing |
+| Notifications | [notification](notification/), [notify](notify/), [mailer](mailer/), [webhook](webhook/) | Notification contracts, delivery abstractions, email and signed webhooks |
+| Operations | [audit](audit/), [logger](logger/), [obs](obs/), [healthcheck](healthcheck/), [graceful](graceful/) | Audit records, logging, observability, dependency checks and shutdown |
+| Data utilities | [cache](cache/), [migrate](migrate/), [sequence](sequence/), [timeutil](timeutil/), [validate](validate/), [utils](utils/) | Caching, SQL migrations, sequences, time, validation and shared helpers |
 
-### L2 — 平台能力
+Package source and adjacent tests define each API. Similar package names represent separate contracts; check the consumer before substituting one for another.
 
-| 包 | 说明 |
-|---|------|
-| `resp` | 统一 API 响应格式（Success/Error/SuccessPage + 错误码） |
-| `bizerr` | 业务错误类型（BizError + HandleError + 便捷构造函数） |
-| `ginutil` | Gin 工具（路由参数解析 + Context Helpers） |
-| `middleware` | HTTP 中间件（CORS、RequestID、JWT、平台/租户 token、Feature Gate、租户状态、角色鉴权、Header Secret） |
-| `auth` | 平台/租户 JWT claims、签发、解析、step-up token、audience 校验 |
-| `rbac` | 权限码精确匹配、通配符匹配与 subject 权限检查 |
-| `ratelimit` | 多维限流（RPM/TPM/并发，Redis Lua 脚本） |
-| `crypto` | 密码哈希（bcrypt）+ 验证码生成 + 密码强度校验 + TOTP 生成/验证 |
-| `lock` | Redis 分布式锁（SetNX + token 所有权 + Lua 原子释放） |
-| `audit` | 审计日志（Gin 中间件自动记录 + 事务内手动记录） |
-| `idempotent` | 幂等控制（Idempotency-Key 中间件 + Service 层 Check） |
-| `idempotency` | 租户/主体/请求作用域幂等键、请求体哈希、持久化记录、响应重放与 GC |
-| `webhook` | HMAC 签名、签名头解析与时间窗口校验 |
-| `files` | 租户文件对象、上传策略、对象 key 构造与文件类型约束 |
-| `notification` | 通知消息结构、类型规范化、payload 校验 |
-| `job` | Job lease、retry/backoff policy、cron 表达式防护 |
-| `jobpayload` | 后台任务 payload 类型读取工具 |
-| `outbox` | Reliable Events outbox 记录、内存 store、GORM 事务 inserter |
-| `reliableevents` | 可靠事件 outbox 服务、pending/list、发送状态、失败重试与 consumer 幂等记录 |
-| `sequence` | Redis 序列号生成（日期分区 + 自动递增） |
-| `notify` | 通知抽象层（邮件/Webhook + 重试包装器） |
-| `validate` | 通用校验（邮箱/手机号格式） |
-| `healthcheck` | 健康检查（多检查项注册 + Gin Handler） |
-| `scheduler` | 定时任务调度（后台 goroutine + 分布式锁） |
-| `storage` | 对象存储抽象（本地文件系统 / 可扩展 OSS） |
-| `pii` | 多司法辖区 PII 脱敏（邮箱、手机号、证件号、银行卡、JWT/API key、IP） |
+## Minimal HTTP example
 
-### L3 — 架构能力
-
-| 包 | 说明 |
-|---|------|
-| `circuitbreaker` | 熔断器（Closed/Open/HalfOpen 状态机） |
-| `tenant` | 多租户上下文（Gin 中间件 + context 传递） |
-| `event` | 轻量事件总线（同步/异步发布 + panic 恢复） |
-| `cache` | 缓存抽象（Redis 实现 + GetOrLoad 模式）与进程内 LRU |
-| `graceful` | HTTP Server 优雅关停（信号监听 + 超时控制） |
-| `obs` | 结构化可观测性字段、请求元数据、slog wrapper、出站 Request-ID 传播 |
-| `utils` | IP、手机号、指数退避等无状态通用工具 |
-| `runtimeguard` | 运行时安全守卫（内存/Redis 固定窗口限流、短租约锁、Gin fail-closed middleware） |
-
-## 使用示例
+This example uses existing request-ID and response helpers and listens on loopback. It does not require MySQL or Redis.
 
 ```go
+package main
+
 import (
+    "log"
+
     "github.com/gin-gonic/gin"
-    "github.com/zanehu-ai/synapse-go/config"
-    "github.com/zanehu-ai/synapse-go/db"
-    "github.com/zanehu-ai/synapse-go/logger"
-    "github.com/zanehu-ai/synapse-go/resp"
-    "github.com/zanehu-ai/synapse-go/middleware"
+    "github.com/zanehu-ai/x-go/middleware"
+    "github.com/zanehu-ai/x-go/resp"
 )
 
 func main() {
-    cfg := config.Load()
-    log := logger.New(cfg.Env)
-    gormDB, _ := db.New(cfg.MySQL)
-
-    r := gin.New()
-    r.Use(middleware.RequestIDMiddleware())
-    r.Use(middleware.CORSMiddleware("http://localhost:3000"))
-
-    r.GET("/health", func(c *gin.Context) {
+    router := gin.New()
+    router.Use(gin.Recovery(), middleware.RequestIDMiddleware())
+    router.GET("/healthz", func(c *gin.Context) {
         resp.Success(c, gin.H{"status": "ok"})
     })
+    log.Fatal(router.Run("127.0.0.1:8080"))
 }
 ```
 
-## API 响应格式
+`/healthz` above is a liveness response. Applications that need readiness checks must register their dependencies using [healthcheck](healthcheck/) or their own readiness contract.
 
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": { ... },
-  "trace_id": "abc-123"
-}
-```
+The [response envelope](resp/resp.go) contains `code`, `message`, `data` and an optional `trace_id`. Success is `0`; error constants distinguish request errors (`1xxx`), authorization errors (`2xxx`) and internal errors (`5xxx`). `config` provides types and environment helpers; the application supplies its own configuration loader.
 
-错误码规范：`0` 成功 / `1xxx` 客户端错误 / `2xxx` 鉴权错误 / `5xxx` 服务端错误
+## Development
 
-## 开发
+Run from this repository with Go and, for linting, `golangci-lint` installed:
 
 ```bash
-make test          # 运行单元测试
-make test-verbose  # 详细输出
-make lint          # golangci-lint
-make coverage      # 生成覆盖率报告
+go mod download
+make test          # Race/coverage checks with -short; skips external-service tests
+make test-verbose  # Same scope with verbose output
+make lint          # golangci-lint run ./...
+go build ./...
+make coverage      # Produces coverage.out and coverage.html
 ```
 
-## 版本管理
+`make test-all` includes integration tests. Review their fixtures first and use isolated test services: the [DB tests](db/db_test.go) expect a local MySQL test database and the [Redis tests](redis/redis_test.go) use local Redis. They are not production probes.
 
-推送 tag 发布新版本：
-```bash
-git tag v0.3.0
-git push origin v0.3.0
-```
+[The Makefile](Makefile) is the command reference. CI also rejects local filesystem `replace` directives in this library's `go.mod` and applies its configured coverage threshold.
 
-消费方更新：
-```bash
-go get github.com/zanehu-ai/synapse-go@v0.3.0
-```
+## Versioning and consumers
+
+Versions are selected through Git tags or commit-based Go module versions. Review exported API changes, run the declared checks, then coordinate the release and consumer version updates. A local source change does not update downstream services; each consumer must explicitly adopt the chosen revision and pass its own checks.

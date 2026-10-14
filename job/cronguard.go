@@ -32,7 +32,7 @@ package job
 //     double-crack cannot recur silently.
 //
 // This file is the Go reference implementation for the shared fixture at
-// synapse-go/job/testdata/cron_guard_vectors.json; the Java conformance test
+// x-go/job/testdata/cron_guard_vectors.json; the Java conformance test
 // CronGuardConformanceTest.java loads the same JSON and asserts that
 // net.ys818.platform.common.schedule.CronExpressionGuard produces identical
 // accept/reject decisions.

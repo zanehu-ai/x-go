@@ -26,7 +26,7 @@
 //     use; no package-level state beyond the compiled regexp.
 //
 // This file is the **frozen reference** for the cross-language conformance
-// suite under synapse-go/utils/testdata/phone_vectors.json. Any behaviour
+// suite under x-go/utils/testdata/phone_vectors.json. Any behaviour
 // change here must be paired with a fixture regeneration AND a Java-side
 // PhoneUtilsConformanceTest re-run, otherwise Go and Java will silently
 // disagree on user-input validation.

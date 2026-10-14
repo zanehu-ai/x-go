@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/zanehu-ai/synapse-go/lock"
-	"github.com/zanehu-ai/synapse-go/logger"
+	"github.com/zanehu-ai/x-go/lock"
+	"github.com/zanehu-ai/x-go/logger"
 )
 
 // Task defines a periodic background task.

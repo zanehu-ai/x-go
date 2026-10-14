@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	coreauth "github.com/zanehu-ai/synapse-go/auth"
+	coreauth "github.com/zanehu-ai/x-go/auth"
 )
 
 // MockProviderAdapter is a test double for coreauth.ProviderAdapter.
 // It is exported so that identity package tests can import it from
-// synapse-go/auth_test (or copy the pattern locally).
+// x-go/auth_test (or copy the pattern locally).
 //
 // Usage:
 //

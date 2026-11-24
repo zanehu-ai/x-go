@@ -1,8 +1,15 @@
 # x-go
 
-Reusable Go infrastructure and platform capabilities for x-core, x-pay, Cargo and other Go services. This repository is a library; applications own their startup, configuration and business workflows.
+Production-ready Go backend foundation library covering configuration, persistence, authentication, tenancy, cryptography, distributed coordination, idempotency, durable outbox events, media storage, notifications, and observability.
 
-The repository is `x-go`; the Go module and import prefix are **`github.com/zanehu-ai/x-go`**. Packages live at the module root. The local checkout is `libraries/x-go`. The canonical module rename is prepared locally; it has not been published by this change. Existing consumers use checksum-verified, names-only dependency overlays until canonical releases are available.
+This repository is a reusable library (**`github.com/zanehu-ai/x-go`**); consuming services own their application startup, configuration wiring, and business workflows.
+
+## Design Highlights
+
+- **Financial & Concurrency Guardrails**: Distributed locks (`lock`), rate limiting (`ratelimit`), circuit breaking (`circuitbreaker`), lease guards (`runtimeguard`), and persistent request idempotency (`idempotent`, `idempotency`).
+- **Durable Delivery & Eventing**: Transactional outbox (`outbox`), reliable event contracts (`reliableevents`), and signed webhooks (`webhook`).
+- **Compliance & Security by Default**: Versioned AES-GCM encryption (`secretbox`), PII redaction (`pii`), RBAC & tenant isolation (`auth`, `rbac`, `tenant`), and structured audit trails (`audit`).
+- **Unified Operability**: Structured logging (`logger`), dependency readiness (`healthcheck`), telemetry (`obs`), and graceful shutdown (`graceful`).
 
 ## Requirements and installation
 

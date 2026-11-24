@@ -1,5 +1,12 @@
 # x-go
 
+<details>
+<summary>简体中文简介（点击展开）</summary>
+
+`x-go` 是面向生产环境的 **Go 后端通用基础设施组件库**（`github.com/zanehu-ai/x-go`，Go 1.25+），覆盖配置校验、MySQL/GORM 与 Redis 连接、多租户与 RBAC 鉴权、分布式锁/限流/熔断、持久化幂等防重、事务发件箱（Outbox）、AES-GCM 版本化加密与 PII 脱敏、结构化审计日志与优雅停机等 11 类核心基础包，适用于支付中台与高可靠微服务底座建设。
+
+</details>
+
 Production-ready Go backend foundation library covering configuration, persistence, authentication, tenancy, cryptography, distributed coordination, idempotency, durable outbox events, media storage, notifications, and observability.
 
 This repository is a reusable library (**`github.com/zanehu-ai/x-go`**); consuming services own their application startup, configuration wiring, and business workflows.

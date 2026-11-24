@@ -1,5 +1,9 @@
 # x-go
 
+[![CI](https://github.com/zanehu-ai/x-go/actions/workflows/ci.yml/badge.svg)](https://github.com/zanehu-ai/x-go/actions/workflows/ci.yml)
+![Go 1.25](https://img.shields.io/badge/go-1.25-111111?style=flat)
+![License: MIT](https://img.shields.io/badge/license-MIT-111111?style=flat)
+
 <details>
 <summary>简体中文简介（点击展开）</summary>
 
@@ -31,6 +35,25 @@ go get github.com/zanehu-ai/x-go@<version-or-commit>
 ```
 
 Keep the chosen version in the consumer's `go.mod` and `go.sum`. Existing consumers of older module identities require their own migration; changing a checkout folder does not migrate imports.
+
+## Architecture Layers (11 Package Areas)
+
+```text
++-----------------------------------------------------------------------------------+
+| 1. HTTP & Edge Adapters      | ginutil, middleware, resp, bizerr                  |
++-----------------------------------------------------------------------------------+
+| 2. Domain Guardrails & Auth  | auth, rbac, tenant, ratelimit, lock,               |
+|                              | circuitbreaker, runtimeguard, idempotent/idempotency|
++-----------------------------------------------------------------------------------+
+| 3. Persistence, Crypto &     | config, db, redis, secretbox, crypto, pii,         |
+|    Async Durability          | outbox, reliableevents, job, jobpayload, event,    |
+|                              | scheduler, files, storage, imaging                 |
++-----------------------------------------------------------------------------------+
+| 4. Observability, Delivery   | audit, logger, obs, healthcheck, graceful,         |
+|    & Shared Utilities        | notification, notify, mailer, webhook, cache,      |
+|                              | migrate, sequence, timeutil, validate, utils       |
++-----------------------------------------------------------------------------------+
+```
 
 ## Package guide
 
